@@ -7,37 +7,52 @@ public class ReplaySystem : MonoBehaviour {
 	private MyKeyFrame[] keyFrames = new MyKeyFrame[bufferFrames];
 	private Rigidbody rigidBody;
 
-	public bool firstPlayback;
-	public int framesAvailable;
-	public bool notEnoughFrames;
+	private bool firstPlayback;	// first time the replay starts or 2nd(etc) loop
+	private int framesAvailable;	// Available frames for replay
+	private bool notEnoughFrames; // less frames than bufferFrames?
+	private int frameNumber;	// Number of current frame
+
+	private MyKeyFrame crrntState;	// State(pos/rot) before Playback
+	private Vector3 crrntVelocity;	// velocity before Playback
+	private Vector3 crrntAngularVelocity; // angularVelocity before Playback
+
 	// Use this for initialization
 	void Start () {
 		rigidBody = GetComponent<Rigidbody>();
 		gameManager = GameObject.FindObjectOfType<GameManager>();
+		Time.captureFramerate = 60;
 	}
 	
 	// Update is called once per frame
 	void Update () {
+		frameNumber++;
 		if (gameManager.recording){
 			Record ();
 		} else {
+			if (!firstPlayback && framesAvailable != 0){
+				while (frameNumber > framesAvailable){ 
+					frameNumber -= framesAvailable;
+				}
+			}
 			PlayBack();
 		}
 	}
 
 	void PlayBack(){
-		rigidBody.isKinematic = true;
-		int frame = Time.frameCount % bufferFrames;
-
-		if (Time.frameCount < bufferFrames && firstPlayback){
-			framesAvailable = Time.frameCount;
-			firstPlayback=false;
-			notEnoughFrames = true;
+		int frame = frameNumber % bufferFrames;
+		if (firstPlayback){
+			// First Playback loop
+			if (frameNumber < bufferFrames){
+				framesAvailable = frameNumber;
+				firstPlayback=false;
+				notEnoughFrames = true;
+				SaveState();
+			}
+			rigidBody.isKinematic = true;
 		}
 		if (notEnoughFrames){
 			frame = frame % framesAvailable;
 		}
-
 		transform.position = keyFrames[frame].pos;
 		transform.rotation = keyFrames[frame].rot;
 	}
@@ -45,14 +60,34 @@ public class ReplaySystem : MonoBehaviour {
 	void Record ()
 	{
 		Reset(); 
-		rigidBody.isKinematic = false;
-		int frame = Time.frameCount % bufferFrames;
+		int frame = frameNumber % bufferFrames;
 		keyFrames [frame] = new MyKeyFrame (Time.time, transform.position, transform.rotation);
 	}
 
 	void Reset(){
+		if (!firstPlayback){
+			// Starting recording again, resetting stuff
+			frameNumber = 0;
+			keyFrames = new MyKeyFrame[bufferFrames];
+			rigidBody.isKinematic = false;
+			LoadState();
+		}
 		firstPlayback = true;
 		notEnoughFrames = false;
+	}
+
+	void SaveState(){
+		crrntState = new MyKeyFrame(Time.time, transform.position, transform.rotation);
+		crrntVelocity = rigidBody.velocity;
+		crrntAngularVelocity = rigidBody.angularVelocity;
+		Debug.Log("V: " + crrntVelocity + ", AV: " + crrntAngularVelocity);
+	}
+
+	void LoadState(){
+		transform.position = crrntState.pos;
+		transform.rotation = crrntState.rot;
+		rigidBody.velocity = crrntVelocity;
+		rigidBody.angularVelocity = crrntAngularVelocity;
 	}
 }
 
