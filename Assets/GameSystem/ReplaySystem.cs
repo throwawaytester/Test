@@ -10,6 +10,8 @@ public class ReplaySystem : MonoBehaviour {
 	public bool firstPlayback;
 	public int framesAvailable;
 	public bool notEnoughFrames;
+	public int frameNumber;
+	public int frameOffset;
 	// Use this for initialization
 	void Start () {
 		rigidBody = GetComponent<Rigidbody>();
@@ -27,30 +29,41 @@ public class ReplaySystem : MonoBehaviour {
 
 	void PlayBack(){
 		rigidBody.isKinematic = true;
-		int frame = Time.frameCount % bufferFrames;
+		frameNumber++;
+		int frame = frameNumber % bufferFrames;
 
-		if (Time.frameCount < bufferFrames && firstPlayback){
-			framesAvailable = Time.frameCount;
-			firstPlayback=false;
-			notEnoughFrames = true;
+		if (firstPlayback){
+			if (frameNumber < bufferFrames){
+				framesAvailable = frameNumber;
+				firstPlayback=false;
+				notEnoughFrames = true;
+			} else {
+				frameOffset = 0;
+			}
 		}
+		
 		if (notEnoughFrames){
 			frame = frame % framesAvailable;
 		}
 
-		transform.position = keyFrames[frame].pos;
-		transform.rotation = keyFrames[frame].rot;
+		transform.position = keyFrames[frame + frameOffset].pos;
+		transform.rotation = keyFrames[frame + frameOffset].rot;
 	}
 
 	void Record ()
 	{
 		Reset(); 
+		frameNumber++;
 		rigidBody.isKinematic = false;
-		int frame = Time.frameCount % bufferFrames;
+		int frame = frameNumber % bufferFrames;
 		keyFrames [frame] = new MyKeyFrame (Time.time, transform.position, transform.rotation);
 	}
 
 	void Reset(){
+		if (!firstPlayback){
+			frameOffset = frameNumber % bufferFrames;
+			frameNumber = 0;
+		}
 		firstPlayback = true;
 		notEnoughFrames = false;
 	}
